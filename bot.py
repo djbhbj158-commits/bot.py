@@ -2145,23 +2145,52 @@ async def handle_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # ═══════════════ القائمة الرئيسية والمعلومات ═══════════════
     if data == "menu_main":
+    await show_main_menu(update, member_id)
+
+elif data == "menu_account_info":
+    await show_account_info(update, member_id)
+
+elif data == "verify_mandatory":
+    is_joined, _ = await check_mandatory_channels(member_id, context)
+    if is_joined:
+        channels = db._settings.get('mandatory_channels', [])
+        for ch in channels:
+            db.increment_mandatory_channel_members(ch)
+        
+        pending_ref = context.user_data.get('PENDING_REFERRAL')
+        if pending_ref and not pending_ref.get('processed', False):
+            inviter_id = pending_ref['inviter_id']
+            new_member_id = pending_ref['new_member_id']
+            
+            success, msg = db.process_referral(new_member_id, inviter_id)
+            if success:
+                pending_ref['processed'] = True
+                inviter_reward = db._settings.get('inviter_reward', GuardianConfig.INVITER_REWARD_AMOUNT)
+                invited_reward = db._settings.get('invited_reward', GuardianConfig.INVITED_REWARD_AMOUNT)
+                
+                try:
+                    await context.bot.send_message(
+                        chat_id=inviter_id,
+                        text=f"🎉 مبروك! تم تسجيل عضو جديد عبر رابط الإحالة الخاص بك!\n\n"
+                             f"💰 حصلت على مكافأة {inviter_reward} IQD\n"
+                             f"👤 العضو الجديد: @{update.effective_user.username or update.effective_user.first_name}"
+                    )
+                except:
+                    pass
+                
+                await query.edit_message_text(
+                    f"✅ تم التحقق من اشتراكك!\n\n"
+                    f"🎁 حصلت على مكافأة تسجيل {invited_reward} IQD\n"
+                    f"💰 رصيدك الحالي: {db.get_member(member_id).get('balance', 0)} IQD\n\n"
+                    f"أهلاً بك في البوت!"
+                )
+                await show_main_menu(update, member_id)
+                return
+        
+        await query.edit_message_text("✅ تم التحقق من اشتراكك! أهلاً بك في البوت.")
         await show_main_menu(update, member_id)
-    
-    elif data == "menu_account_info":
-        await show_account_info(update, member_id)
-    
-    elif data == "verify_mandatory":
-        # عند الضغط على تحقق - هنا فقط يتم زيادة العداد
-        is_joined, _ = await check_mandatory_channels(member_id, context)
-        if is_joined:
-            # زيادة عداد القنوات الإجبارية
-            channels = db._settings.get('mandatory_channels', [])
-            for ch in channels:
-                db.increment_mandatory_channel_members(ch)
-            await query.edit_message_text("✅ تم التحقق من اشتراكك! أهلاً بك في البوت.")
-            await show_main_menu(update, member_id)
-        else:
-            await query.answer("❌ لم تشترك في جميع القنوات المطلوبة!", show_alert=True)
+    else:
+        await query.answer("❌ لم تشترك في جميع القنوات المطلوبة!", show_alert=True)
     
     # ═══════════════ نظام الحماية ═══════════════
     elif data == "menu_protection_system":
