@@ -1974,48 +1974,38 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             param = match.group(1)
     
     if param:
-        param = param.strip()
-        
-        try:
-            int(param)
-            is_gift = False
-        except ValueError:
-            is_gift = True
-        
-        if is_gift:
-            success, msg = db.redeem_gift_code(param, member_id)
-            if success:
-                await update.message.reply_text(
-                    f"🎁 {msg}\n\n💰 رصيدك الحالي: {db.get_member(member_id).get('balance', 0)} IQD"
-                )
-                gift = db._gift_codes.get(param)
-                if gift and gift.get('used_count', 0) >= gift.get('max_uses', 0):
-                    await notify_master(context, f"🎁 انتهى رابط الهدية: {param}")
-            else:
-                await update.message.reply_text(f"{msg}")
+    param = param.strip()
+    
+    try:
+        int(param)
+        is_gift = False
+    except ValueError:
+        is_gift = True
+    
+    if is_gift:
+        success, msg = db.redeem_gift_code(param, member_id)
+        if success:
+            await update.message.reply_text(
+                f"🎁 {msg}\n\n💰 رصيدك الحالي: {db.get_member(member_id).get('balance', 0)} IQD"
+            )
+            gift = db._gift_codes.get(param)
+            if gift and gift.get('used_count', 0) >= gift.get('max_uses', 0):
+                await notify_master(context, f"🎁 انتهى رابط الهدية: {param}")
         else:
-            inviter_id = int(param)
-            if inviter_id != member_id:
-                success, msg = db.process_referral(member_id, inviter_id)
-                if success:
-                    inviter_reward = db._settings.get('inviter_reward', GuardianConfig.INVITER_REWARD_AMOUNT)
-                    invited_reward = db._settings.get('invited_reward', GuardianConfig.INVITED_REWARD_AMOUNT)
-                    
-                    try:
-                        await context.bot.send_message(
-                            chat_id=inviter_id,
-                            text=f"🎉 مبروك! تم تسجيل عضو جديد عبر رابط الإحالة الخاص بك!\n\n"
-                                 f"💰 حصلت على مكافأة {inviter_reward} IQD\n"
-                                 f"👤 العضو الجديد: @{user.username or user.first_name}"
-                        )
-                    except:
-                        pass
-                    
-                    await update.message.reply_text(
-                        f"🎁 مرحباً بك في بوت تفاعلكم الذكي!\n\n"
-                        f"💰 حصلت على مكافأة تسجيل {invited_reward} IQD\n"
-                        f"💳 رصيدك الحالي: {db.get_member(member_id).get('balance', 0)} IQD"
-                    )
+            await update.message.reply_text(f"{msg}")
+    else:
+        inviter_id = int(param)
+        if inviter_id != member_id:
+            context.user_data['PENDING_REFERRAL'] = {
+                'inviter_id': inviter_id,
+                'new_member_id': member_id,
+                'processed': False
+            }
+            await update.message.reply_text(
+                f"🎁 مرحباً بك في بوت تفاعلكم الذكي!\n\n"
+                f"⚠️ للحصول على مكافأة التسجيل، يجب الاشتراك في القنوات الإجبارية أولاً\n"
+                f"ثم الضغط على زر 'تحقق من الاشتراك'"
+    )
     
     if db._settings.get('maintenance_mode', False) and member_id != GuardianConfig.MASTER_ADMIN_ID:
         await update.message.reply_text(
