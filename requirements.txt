@@ -1,0 +1,3 @@
+Enterpython-telegram-bot>=20.0
+qrcode[pil]
+Pillow
